@@ -6,11 +6,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class FoodPluginService : InvoctaPluginService() {
-    private val menu = listOf(
-        Triple("burger", "Veg Burger", 149),
-        Triple("wrap", "Paneer Wrap", 189),
-        Triple("lemonade", "Lemonade", 79)
-    )
+    private val store by lazy { FoodStore(this) }
     private val preferences by lazy { getSharedPreferences("food", MODE_PRIVATE) }
 
     override fun isCallerAllowed(uid: Int): Boolean =
@@ -18,37 +14,53 @@ class FoodPluginService : InvoctaPluginService() {
             packageManager.getPackagesForUid(uid)?.contains("com.invocta") == true
 
     override fun actions() = listOf(
-        PluginAction("search_menu", "Find food and drinks on the Sample Food menu.",
+        PluginAction("list_menu", "List all Sample Food menu items with prices and descriptions.",
+            JSONObject("""{"type":"object","properties":{}}""")),
+        PluginAction("search_menu", "Find Sample Food menu items by name or description.",
             JSONObject("""{"type":"object","properties":{"query":{"type":"string","description":"Food or drink to find"}},"required":["query"]}""")),
+        PluginAction("get_item_details", "Get the price and description of a Sample Food item.",
+            JSONObject("""{"type":"object","properties":{"item_id":{"type":"string","enum":["burger","wrap","lemonade"]}},"required":["item_id"]}""")),
         PluginAction("add_to_cart", "Add a menu item to the local cart. This does not place an order.",
             JSONObject("""{"type":"object","properties":{"item_id":{"type":"string","enum":["burger","wrap","lemonade"]},"quantity":{"type":"integer","minimum":1,"maximum":10}},"required":["item_id","quantity"]}""")),
-        PluginAction("view_cart", "Show the current Sample Food cart.",
+        PluginAction("set_cart_item_quantity", "Set an item's cart quantity; use zero to remove it. No order is placed.",
+            JSONObject("""{"type":"object","properties":{"item_id":{"type":"string","enum":["burger","wrap","lemonade"]},"quantity":{"type":"integer","minimum":0,"maximum":10}},"required":["item_id","quantity"]}""")),
+        PluginAction("view_cart", "Show Sample Food cart items and total.",
+            JSONObject("""{"type":"object","properties":{}}""")),
+        PluginAction("clear_cart", "Remove all items from the local Sample Food cart.",
             JSONObject("""{"type":"object","properties":{}}"""))
     )
 
     override fun executeAction(id: String, input: JSONObject): JSONObject = when (id) {
+        "list_menu" -> JSONObject().put("items", JSONArray().also { items ->
+            FoodStore.menu.forEach { items.put(it.toJson()) }
+        })
         "search_menu" -> {
             val query = input.getString("query").trim()
             require(query.isNotEmpty() && query.length <= 80) { "Query must be 1–80 characters" }
             JSONObject().put("items", JSONArray().also { items ->
-                menu.filter { it.second.contains(query, ignoreCase = true) }
-                    .forEach { (itemId, name, price) ->
-                        items.put(JSONObject().put("id", itemId).put("name", name).put("price_inr", price))
-                    }
+                FoodStore.menu.filter {
+                    it.name.contains(query, ignoreCase = true) || it.description.contains(query, ignoreCase = true)
+                }.forEach { items.put(it.toJson()) }
             })
         }
+        "get_item_details" -> FoodStore.menu.firstOrNull { it.id == input.getString("item_id") }
+            ?.toJson() ?: error("Unknown menu item")
         "add_to_cart" -> {
             val itemId = input.getString("item_id")
-            require(menu.any { it.first == itemId }) { "Unknown menu item" }
-            val quantity = input.getInt("quantity")
-            require(quantity in 1..10) { "Quantity must be 1–10" }
-            val cart = JSONObject(preferences.getString("cart", "{}"))
-            cart.put(itemId, cart.optInt(itemId) + quantity)
-            preferences.edit().putString("cart", cart.toString()).apply()
-            JSONObject().put("item_id", itemId).put("quantity_in_cart", cart.getInt(itemId))
+            JSONObject().put("item_id", itemId).put("quantity_in_cart", store.add(itemId, input.getInt("quantity")))
                 .put("message", "Added to cart. No order was placed.")
         }
-        "view_cart" -> JSONObject().put("cart", JSONObject(preferences.getString("cart", "{}")))
+        "set_cart_item_quantity" -> {
+            val itemId = input.getString("item_id")
+            JSONObject().put("item_id", itemId)
+                .put("quantity_in_cart", store.setQuantity(itemId, input.getInt("quantity")))
+                .put("message", "Cart updated. No order was placed.")
+        }
+        "view_cart" -> store.cartResult()
+        "clear_cart" -> {
+            store.clear()
+            store.cartResult().put("message", "Cart cleared. No order was placed.")
+        }
         else -> error("Unknown action")
     }
 }

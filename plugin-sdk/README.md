@@ -72,7 +72,7 @@ Invocta declares package visibility for `com.invocta.action.PLUGIN`. The user mu
 
 ## Sample
 
-`sample-food-app` is an installable demo. Open it and enable **Allow Invocta**, then enable **Sample Food** in Invocta's **Connected apps** settings. Ask Invocta to search the Sample Food menu, add a Veg Burger to the cart, or show the cart. The demo has no checkout or payment path.
+`sample-food-app` is an installable demo with a photo menu and local cart. Open it and enable **Allow Invocta**, then enable **Sample Food** in Invocta's **Connected apps** settings. Ask Invocta to list or search the menu, describe an item, add it to the cart, change its quantity, show the cart, or clear it. The demo has no checkout or payment path. [Photo credits](../sample-food-app/IMAGE_CREDITS.md) are included.
 
 ```sh
 ./gradlew :app:assembleDebug :sample-food-app:assembleDebug
