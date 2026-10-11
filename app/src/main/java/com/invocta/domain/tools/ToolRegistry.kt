@@ -123,7 +123,7 @@ class ToolRegistry(private val context: Context) {
                 "type" to "function",
                 "function" to mapOf(
                     "name" to tool.name,
-                    "description" to tool.description,
+                    "description" to tool.description.lineSequence().first().trim(),
                     "parameters" to mapOf(
                         "type" to tool.parameters.type,
                         "properties" to tool.parameters.properties.mapValues { (_, prop) ->

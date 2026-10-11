@@ -27,6 +27,8 @@ object ToolProvider {
 
             // App & System tools
             register(OpenAppTool(context))
+            register(DiscoverAppActionsTool(context))
+            register(CallAppActionTool(context))
             register(SetAlarmTool(context))
             register(SetTimerTool(context))
             register(WebSearchTool(context))

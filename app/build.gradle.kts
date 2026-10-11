@@ -91,6 +91,7 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":plugin-sdk"))
     // Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -118,7 +119,7 @@ dependencies {
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
 
-    // Ktor HTTP Client for Azure AI API
+    // Ktor HTTP Client for the existing server-backed speech services
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.android)
     implementation(libs.ktor.client.okhttp) // OkHttp engine for SSE streaming support
@@ -133,6 +134,8 @@ dependencies {
     // Room Database
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
+    implementation(libs.litertlm.android)
+    implementation(libs.androidx.work.runtime)
     ksp(libs.androidx.room.compiler)
 
     // Markdown rendering
