@@ -98,7 +98,7 @@ On first launch, choose local use or sign in. In **Settings → On-device AI**, 
 
 The [`plugin-sdk`](plugin-sdk/README.md) module provides `InvoctaPluginService`, `PluginAction`, and a client protocol built on Android's bound-service `Messenger`. A provider declares its service, describes the actions it offers, validates inputs, and decides whether the caller is allowed. Invocta discovers providers and exposes approved actions to its AI tool loop as `discover_app_actions` and `call_app_action`.
 
-The sample food app shows the complete flow. Its actions search a menu, add items to a **local** cart, and view that cart. It has no checkout or payment action. Other apps can add the [published SDK through JitPack](plugin-sdk/README.md#add-the-sdk). For sensitive or irreversible actions, provider apps should verify the caller's signing certificate and require their own confirmation before acting.
+The sample food app shows the complete flow. Its actions search a menu, add items to a **local** cart, and view that cart. It has no checkout or payment action. Other apps can add the [published SDK](plugin-sdk/README.md#add-the-sdk). For sensitive or irreversible actions, provider apps should verify the caller's signing certificate and require their own confirmation before acting.
 
 ## Current boundaries
 

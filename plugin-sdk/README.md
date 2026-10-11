@@ -4,14 +4,14 @@ This Android library lets an app expose a small set of local actions to Invocta.
 
 ## Add the SDK
 
-Add JitPack to `settings.gradle.kts`:
+Add Invocta's public Maven repository to `settings.gradle.kts`:
 
 ```kotlin
 dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { url = uri("https://jitpack.io") }
+        maven { url = uri("https://invocta.github.io/Android-App/maven") }
     }
 }
 ```
@@ -20,7 +20,7 @@ Then add the SDK to your app module:
 
 ```kotlin
 dependencies {
-    implementation("com.github.Invocta.Android-App:plugin-sdk:v0.1.0")
+    implementation("io.github.invocta:plugin-sdk:0.1.0")
 }
 ```
 

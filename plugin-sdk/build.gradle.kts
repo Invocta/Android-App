@@ -4,8 +4,8 @@ plugins {
     `maven-publish`
 }
 
-group = "com.github.Invocta.Android-App"
-version = System.getenv("VERSION") ?: "0.1.0"
+group = "io.github.invocta"
+version = "0.1.0"
 
 android {
     namespace = "com.invocta.pluginsdk"

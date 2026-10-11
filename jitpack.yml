@@ -1,6 +1,0 @@
-jdk:
-  - openjdk17
-before_install:
-  - rm gradle/gradle-daemon-jvm.properties
-install:
-  - ./gradlew :plugin-sdk:publishReleasePublicationToMavenLocal
