@@ -1,6 +1,8 @@
 package com.invocta.domain.repository
 
 import com.invocta.domain.model.ThemeMode
+import com.invocta.domain.model.ChatStorageMode
+import com.invocta.domain.model.AiProvider
 import com.invocta.domain.model.UserPreferences
 import kotlinx.coroutines.flow.Flow
 
@@ -20,5 +22,7 @@ interface PreferencesRepository {
 
     // Onboarding
     suspend fun updateOnboardingCompleted(completed: Boolean)
+    suspend fun updateChatStorageMode(mode: ChatStorageMode)
+    suspend fun updateAiProvider(provider: AiProvider)
 }
 

@@ -171,13 +171,11 @@ fun OnboardingScreen(
                         uiState = uiState,
                         onEmailChange = viewModel::updateEmail,
                         onPasswordChange = viewModel::updatePassword,
-                        onConfirmPasswordChange = viewModel::updateConfirmPassword,
-                        onToggleAuthMode = viewModel::toggleAuthMode,
-                        onSignUpWithEmail = viewModel::signUpWithEmail,
-                        onSignInWithEmail = viewModel::signInWithEmail,
+                        onContinueWithEmail = viewModel::continueWithEmail,
                         onSignInWithGoogle = viewModel::signInWithGoogle,
                         onGoogleSignInResult = viewModel::handleGoogleSignInResult,
-                        onForgotPassword = viewModel::sendPasswordReset
+                        onForgotPassword = viewModel::sendPasswordReset,
+                        onContinueLocally = viewModel::continueLocally
                     )
                     OnboardingStep.EMAIL_VERIFICATION -> EmailVerificationStep(
                         uiState = uiState,
@@ -228,19 +226,16 @@ private fun AuthenticationStep(
     uiState: OnboardingUiState,
     onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
-    onConfirmPasswordChange: (String) -> Unit,
-    onToggleAuthMode: () -> Unit,
-    onSignUpWithEmail: () -> Unit,
-    onSignInWithEmail: () -> Unit,
+    onContinueWithEmail: () -> Unit,
     onSignInWithGoogle: (Activity) -> Unit,
     onGoogleSignInResult: (NativeSignInResult) -> Unit,
-    onForgotPassword: () -> Unit
+    onForgotPassword: () -> Unit,
+    onContinueLocally: () -> Unit
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
     val focusManager = LocalFocusManager.current
     var passwordVisible by remember { mutableStateOf(false) }
-    var confirmPasswordVisible by remember { mutableStateOf(false) }
 
     // Supabase native Google Sign-In
     val googleSignInAction = SupabaseClientProvider.client.composeAuth.rememberSignInWithGoogle(
@@ -282,7 +277,7 @@ private fun AuthenticationStep(
         )
 
         Text(
-            text = if (uiState.isSignUp) "Create your account" else "Sign in to continue",
+            text = "Sign & Sync your Chat's across devices",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp)
@@ -370,14 +365,12 @@ private fun AuthenticationStep(
             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Password,
-                imeAction = if (uiState.isSignUp) ImeAction.Next else ImeAction.Done
+                imeAction = ImeAction.Done
             ),
             keyboardActions = KeyboardActions(
                 onDone = {
-                    if (!uiState.isSignUp) {
-                        focusManager.clearFocus()
-                        onSignInWithEmail()
-                    }
+                    focusManager.clearFocus()
+                    onContinueWithEmail()
                 }
             ),
             singleLine = true,
@@ -386,60 +379,19 @@ private fun AuthenticationStep(
             enabled = !uiState.isLoading
         )
 
-        // Confirm password field (only for sign up)
-        AnimatedVisibility(visible = uiState.isSignUp) {
-            Column {
-                Spacer(modifier = Modifier.height(16.dp))
-                OutlinedTextField(
-                    value = uiState.confirmPassword,
-                    onValueChange = onConfirmPasswordChange,
-                    label = { Text("Confirm Password") },
-                    leadingIcon = {
-                        Icon(Icons.Default.Lock, contentDescription = null)
-                    },
-                    trailingIcon = {
-                        IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
-                            Icon(
-                                imageVector = if (confirmPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = if (confirmPasswordVisible) "Hide password" else "Show password"
-                            )
-                        }
-                    },
-                    visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Password,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onDone = {
-                            focusManager.clearFocus()
-                            onSignUpWithEmail()
-                        }
-                    ),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    enabled = !uiState.isLoading
-                )
-            }
+        TextButton(
+            onClick = onForgotPassword,
+            modifier = Modifier.align(Alignment.End),
+            enabled = !uiState.isLoading
+        ) {
+            Text("Forgot Password?")
         }
 
-        // Forgot password (only for sign in)
-        AnimatedVisibility(visible = !uiState.isSignUp) {
-            TextButton(
-                onClick = onForgotPassword,
-                modifier = Modifier.align(Alignment.End),
-                enabled = !uiState.isLoading
-            ) {
-                Text("Forgot Password?")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         // Submit button
         Button(
-            onClick = { if (uiState.isSignUp) onSignUpWithEmail() else onSignInWithEmail() },
+            onClick = onContinueWithEmail,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
@@ -447,37 +399,14 @@ private fun AuthenticationStep(
             enabled = !uiState.isLoading
         ) {
             Text(
-                text = if (uiState.isSignUp) "Create Account" else "Sign In",
+                text = "Continue with Email",
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Toggle auth mode
-        Row(
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = if (uiState.isSignUp) "Already have an account?" else "Don't have an account?",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            TextButton(
-                onClick = onToggleAuthMode,
-                enabled = !uiState.isLoading
-            ) {
-                Text(
-                    text = if (uiState.isSignUp) "Sign In" else "Sign Up",
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
-
         // Email sent message
-        AnimatedVisibility(visible = uiState.emailSent && !uiState.isSignUp) {
+        AnimatedVisibility(visible = uiState.emailSent) {
             Text(
                 text = "Password reset email sent! Check your inbox.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -486,6 +415,22 @@ private fun AuthenticationStep(
                 modifier = Modifier.padding(top = 16.dp)
             )
         }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        TextButton(
+            onClick = onContinueLocally,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !uiState.isLoading
+        ) {
+            Text("Use locally with your own models")
+        }
+        Text(
+            text = "Keep chats on this device and use your own AI models.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 6.dp)
+        )
     }
 }
 

@@ -1,9 +1,14 @@
 package com.invocta.di
 
 import com.invocta.data.local.InvoctaDatabase
+import com.invocta.data.local.ai.LocalGemmaModelManager
 import com.invocta.data.remote.AIClient
-import com.invocta.data.remote.ServerProxiedAzureAIClient
-import com.invocta.data.remote.api.InvoctaApiClient
+import com.invocta.data.remote.GoogleAiStudioAIClient
+import com.invocta.data.remote.GoogleAiStudioKeyStore
+import com.invocta.data.remote.OpenAiAIClient
+import com.invocta.data.remote.OpenAiKeyStore
+import com.invocta.data.remote.SelectedAIClient
+import com.invocta.data.local.ai.LocalGemmaAIClient
 import com.invocta.data.repository.AuthRepositoryImpl
 import com.invocta.data.repository.ChatSessionRepositoryImpl
 import com.invocta.data.repository.PreferencesRepositoryImpl
@@ -20,29 +25,29 @@ import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.dsl.module
 
 val appModule = module {
-    // Database (kept for potential local caching in future)
+    single { LocalGemmaModelManager(androidContext()) }
+
+    // Local-mode chat storage.
     single { InvoctaDatabase.getInstance(androidContext()) }
     single { get<InvoctaDatabase>().chatSessionDao() }
     single { get<InvoctaDatabase>().chatMessageDao() }
 
-    // API Client for server communication
-    single { InvoctaApiClient() }
-
-    // AI Client (proxied through server - no API keys needed on client)
-    single<AIClient> { ServerProxiedAzureAIClient(get()) }
+    single { GoogleAiStudioKeyStore(androidContext()) }
+    single { OpenAiKeyStore(androidContext()) }
+    single<AIClient> { SelectedAIClient(get(), LocalGemmaAIClient(get()), GoogleAiStudioAIClient(get()), OpenAiAIClient(get())) }
 
     // Tool Registry with all available tools
     single<ToolRegistry> { ToolProvider.createToolRegistry(androidContext()) }
 
     // Repositories
     single<AuthRepository> { AuthRepositoryImpl() }
-    single<ChatSessionRepository> { ChatSessionRepositoryImpl(androidContext(), get(), get(), get()) }
     single<PreferencesRepository> { PreferencesRepositoryImpl(androidContext()) }
+    single<ChatSessionRepository> { ChatSessionRepositoryImpl(androidContext(), get(), get(), get(), get(), get()) }
 
     // ViewModels
     // ChatViewModel is a singleton to preserve state across activity recreations
     // (especially for AssistantOverlayActivity after tool execution)
-    single { ChatViewModel(get(), get()) }
-    viewModel { OnboardingViewModel(get(), get()) }
-    viewModel { SettingsViewModel(androidContext() as android.app.Application, get(), get(), get()) }
+    single { ChatViewModel(get(), get(), get()) }
+    viewModel { OnboardingViewModel(get(), get(), get()) }
+    viewModel { SettingsViewModel(androidContext() as android.app.Application, get(), get(), get(), get(), get(), get()) }
 }

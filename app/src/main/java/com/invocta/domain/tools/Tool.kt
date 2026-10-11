@@ -86,7 +86,8 @@ sealed class ToolResult {
 data class ToolCall(
     val id: String,
     val name: String,
-    val arguments: String // JSON string of arguments
+    val arguments: String, // JSON string of arguments
+    val thoughtSignature: String? = null
 )
 
 /**

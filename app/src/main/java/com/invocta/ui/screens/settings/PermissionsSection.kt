@@ -81,26 +81,28 @@ fun PermissionsSection(
     var accessibilityEnabled by remember { mutableStateOf(false) }
     var notificationPermissionGranted by remember { mutableStateOf(false) }
     var defaultAssistantSet by remember { mutableStateOf(false) }
+    var permissionCheckComplete by remember { mutableStateOf(false) }
 
-    // Refresh permissions when screen resumes
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                micPermissionGranted = checkMicPermission(context)
-                overlayPermissionGranted = checkOverlayPermission(context)
-                accessibilityEnabled = checkAccessibilityEnabled(context)
-                notificationPermissionGranted = checkNotificationPermission(context)
-                defaultAssistantSet = checkDefaultAssistant(context)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        
-        // Initial check
+    fun refreshPermissionStates() {
         micPermissionGranted = checkMicPermission(context)
         overlayPermissionGranted = checkOverlayPermission(context)
         accessibilityEnabled = checkAccessibilityEnabled(context)
         notificationPermissionGranted = checkNotificationPermission(context)
         defaultAssistantSet = checkDefaultAssistant(context)
+        permissionCheckComplete = true
+    }
+
+    // Refresh permissions when screen resumes
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                refreshPermissionStates()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        
+        // Initial check
+        refreshPermissionStates()
 
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
@@ -207,11 +209,13 @@ fun PermissionsSection(
         ))
     }
 
+    if (permissionCheckComplete && permissions.all { it.isGranted }) return
+
 
     val grantedCount = permissions.count { it.isGranted }
     val totalCount = permissions.size
 
-    Card(
+    if (permissionCheckComplete && permissions.any { !it.isGranted }) Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)

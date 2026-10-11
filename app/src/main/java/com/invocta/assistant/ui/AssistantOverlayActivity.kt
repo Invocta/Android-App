@@ -37,6 +37,8 @@ import com.invocta.data.remote.SupabaseClientProvider
 import com.invocta.domain.model.ThemeMode
 import com.invocta.domain.model.UserPreferences
 import com.invocta.domain.repository.PreferencesRepository
+import com.invocta.domain.model.ChatStorageMode
+import kotlinx.coroutines.flow.first
 import com.invocta.domain.tools.ToolExecutor
 import com.invocta.ui.screens.chat.ChatViewModel
 import com.invocta.ui.theme.InvoctaTheme
@@ -135,6 +137,16 @@ class AssistantOverlayActivity : ComponentActivity() {
                             startActivity(intent)
                             FloatingBubbleService.hide(this@AssistantOverlayActivity)
                             finish()
+                        },
+                        onOpenAiSettings = {
+                            val intent = Intent(this@AssistantOverlayActivity, MainActivity::class.java).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                putExtra("open_ai_settings", true)
+                            }
+                            startActivity(intent)
+                            FloatingBubbleService.hide(this@AssistantOverlayActivity)
+                            finish()
                         }
                     )
                 }
@@ -156,8 +168,9 @@ class AssistantOverlayActivity : ComponentActivity() {
         chatViewModel.stopSpeaking()
 
         // Wait for auth to be ready (handles async loading from storage)
-        val isAuthenticated = SupabaseClientProvider.waitForAuthReady()
-        if (!isAuthenticated) {
+        val storageMode = preferencesRepository.getPreferences().first().chatStorageMode
+        val isAuthenticated = storageMode != ChatStorageMode.CLOUD || SupabaseClientProvider.waitForAuthReady()
+        if (storageMode == ChatStorageMode.CLOUD && !isAuthenticated) {
             Log.w(TAG, "Not authenticated - redirecting to main app for login")
             // Redirect to main app for login
             val intent = Intent(this@AssistantOverlayActivity, MainActivity::class.java).apply {

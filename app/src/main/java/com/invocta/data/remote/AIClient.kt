@@ -3,6 +3,7 @@ package com.invocta.data.remote
 import com.invocta.data.remote.model.ChatMessage
 import com.invocta.domain.tools.ToolCall
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.json.JsonArray
 
 /**
  * Response from AI with potential tool calls
@@ -10,12 +11,13 @@ import kotlinx.coroutines.flow.Flow
 data class AIResponseWithTools(
     val content: String?,
     val toolCalls: List<ToolCall>,
-    val finishReason: String?
+    val finishReason: String?,
+    val providerOutputItems: JsonArray? = null
 )
 
 /**
  * Interface for AI chat completion operations
- * All AI requests are proxied through the Invocta Server
+ * Chat inference is provided by the selected local or BYOK model.
  */
 interface AIClient {
     /**

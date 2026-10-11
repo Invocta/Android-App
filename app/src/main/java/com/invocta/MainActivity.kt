@@ -24,6 +24,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.navigation.compose.rememberNavController
 import com.invocta.domain.model.AuthState
+import com.invocta.domain.model.ChatStorageMode
 import com.invocta.domain.model.ThemeMode
 import com.invocta.domain.model.UserPreferences
 import com.invocta.domain.repository.AuthRepository
@@ -63,6 +64,7 @@ class MainActivity : ComponentActivity() {
         // Get session ID from intent if coming from overlay
         val sessionIdFromIntent = intent.getStringExtra("session_id")
         val openAssistant = intent.getBooleanExtra("open_assistant", false)
+        val openAiSettings = intent.getBooleanExtra("open_ai_settings", false)
 
         setContent {
             // Load preferences from DataStore - use produceState to wait for actual first value
@@ -79,6 +81,17 @@ class MainActivity : ComponentActivity() {
             // Observe auth state reactively - this will update when session is loaded
             val authState by authRepository.authState.collectAsState(initial = AuthState.Loading)
 
+            LaunchedEffect(preferencesState, preferences.chatStorageMode, authState) {
+                if (preferencesState != null && preferences.chatStorageMode == null && authState !is AuthState.Loading) {
+                    val mode = if (authState is AuthState.Authenticated) {
+                        ChatStorageMode.CLOUD
+                    } else {
+                        ChatStorageMode.LOCAL
+                    }
+                    preferencesRepository.updateChatStorageMode(mode)
+                }
+            }
+
             val darkTheme = when (preferences.themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
                 ThemeMode.LIGHT -> false
@@ -91,15 +104,16 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     // Determine start destination based on auth state and preferences
-                    // Wait for BOTH auth state and preferences to be loaded
+                    // Local mode must not wait for Supabase auth initialization.
                     val currentStartDestination = when {
-                        authState is AuthState.Loading -> null // Auth still loading
                         preferencesState == null -> null // Preferences still loading
-                        authState is AuthState.Authenticated -> {
-                            if (preferences.onboardingCompleted) Screen.Home.route
-                            else Screen.Onboarding.route
+                        preferences.chatStorageMode == null -> null // Legacy mode being initialized
+                        preferences.chatStorageMode == ChatStorageMode.LOCAL -> {
+                            if (preferences.onboardingCompleted) Screen.Home.route else Screen.Onboarding.route
                         }
-                        else -> Screen.Onboarding.route // Unauthenticated or error
+                        authState is AuthState.Loading -> null
+                        authState is AuthState.Authenticated && preferences.onboardingCompleted -> Screen.Home.route
+                        else -> Screen.Onboarding.route
                     }
 
                     if (currentStartDestination == null) {
@@ -124,7 +138,7 @@ class MainActivity : ComponentActivity() {
 
                         AppNavHost(
                             navController = navController,
-                            startDestination = currentStartDestination,
+                            startDestination = if (openAiSettings) Screen.Settings.route else currentStartDestination,
                             hasMicPermission = hasMicPermission,
                             onRequestMicPermission = {
                                 micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)

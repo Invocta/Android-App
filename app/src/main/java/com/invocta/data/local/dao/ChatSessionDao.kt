@@ -14,6 +14,9 @@ interface ChatSessionDao {
     @Query("SELECT * FROM chat_sessions ORDER BY updatedAt DESC")
     fun getAllSessions(): Flow<List<ChatSessionEntity>>
 
+    @Query("SELECT * FROM chat_sessions ORDER BY updatedAt DESC")
+    suspend fun getAllSessionsSnapshot(): List<ChatSessionEntity>
+
     @Query("SELECT * FROM chat_sessions WHERE id = :sessionId")
     suspend fun getSessionById(sessionId: String): ChatSessionEntity?
 

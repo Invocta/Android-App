@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
@@ -66,7 +67,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.invocta.R
 import com.invocta.domain.model.AssistantState
+import com.invocta.domain.model.AiProvider
 import com.invocta.domain.model.Message
+import com.invocta.data.local.ai.LocalGemmaModelStatus
 import com.invocta.ui.components.ChatInputBar
 import com.invocta.ui.components.ChatInputState
 import dev.jeziellago.compose.markdowntext.MarkdownText
@@ -98,6 +101,14 @@ fun ChatScreen(
     val currentSession by viewModel.currentSession.collectAsState()
     val allSessions by viewModel.allSessions.collectAsState()
     val streamingContent by viewModel.streamingContent.collectAsState()
+    val gemmaStatus by viewModel.gemmaModelStatus.collectAsState()
+    val aiProvider by viewModel.aiProvider.collectAsState()
+    val gemmaReady = aiProvider != AiProvider.LOCAL || (gemmaStatus as? LocalGemmaModelStatus.Ready)?.selected == true
+    val modelLabel = when (aiProvider) {
+        AiProvider.LOCAL -> "On-device Gemma"
+        AiProvider.GOOGLE_AI_STUDIO -> "Gemma 4 · Google AI Studio"
+        AiProvider.OPENAI -> "${com.invocta.data.remote.OpenAiAIClient.MODEL} · OpenAI"
+    }
     val listState = rememberLazyListState()
     var showMenu by remember { mutableStateOf(false) }
 
@@ -202,8 +213,8 @@ fun ChatScreen(
                             Text(
                                 text = when (assistantState) {
                                     is AssistantState.Listening -> stringResource(R.string.hint_speak_now)
-                                    is AssistantState.Processing -> "Thinking..."
-                                    else -> stringResource(R.string.assistant_ready)
+                                    is AssistantState.Processing -> "$modelLabel · Thinking..."
+                                    else -> modelLabel
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -285,8 +296,21 @@ fun ChatScreen(
                                 // Show streaming content as a temporary message bubble
                                 StreamingMessageBubble(content = streamingContent!!)
                             } else {
-                                ProcessingIndicator()
+                                ProcessingIndicator(modelLabel)
                             }
+                        }
+                    }
+                }
+
+                if (!gemmaReady) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                    ) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text("Set up Gemma to start chatting", style = MaterialTheme.typography.titleSmall)
+                            Text("Download the on-device model in Settings. Your prompts stay on this device.", style = MaterialTheme.typography.bodySmall)
+                            Button(onClick = onNavigateToSettings, modifier = Modifier.padding(top = 8.dp)) { Text("Open AI settings") }
                         }
                     }
                 }
@@ -311,6 +335,7 @@ fun ChatScreen(
         }
     }
 }
+
 
 @Composable
 private fun MessageBubble(message: Message) {
@@ -370,7 +395,7 @@ private fun MessageBubble(message: Message) {
 }
 
 @Composable
-private fun ProcessingIndicator() {
+private fun ProcessingIndicator(modelLabel: String) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(start = 8.dp)
@@ -382,7 +407,7 @@ private fun ProcessingIndicator() {
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "Thinking...",
+            text = "$modelLabel is thinking...",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
         )

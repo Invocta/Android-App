@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
  * - Automatic language detection
  * - Support for Hindi, English, Marathi, and 50+ languages
  */
-class SpeechToTextService(private val context: Context) {
+class SpeechToTextService(private val context: Context, private val localOnly: Boolean = false) {
 
     companion object {
         private const val TAG = "SpeechToText"
@@ -58,6 +58,10 @@ class SpeechToTextService(private val context: Context) {
      */
     fun initialize() {
         scope.launch {
+            if (localOnly) {
+                initializeNativeStt()
+                return@launch
+            }
             // Try Server STT first (best quality)
             Log.d(TAG, "Trying Server STT (gpt-4o-transcribe)...")
             serverStt = ServerSttService(context)

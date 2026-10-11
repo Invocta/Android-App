@@ -2,6 +2,7 @@ package com.invocta.assistant
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.service.voice.VoiceInteractionSession
 import com.invocta.assistant.ui.AssistantOverlayActivity
@@ -11,20 +12,24 @@ import com.invocta.assistant.ui.AssistantOverlayActivity
  */
 class AssistantVoiceInteractionSession(context: Context) : VoiceInteractionSession(context) {
 
+    override fun onPrepareShow(args: Bundle?, showFlags: Int) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) setUiEnabled(false)
+        super.onPrepareShow(args, showFlags)
+    }
+
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
 
-        // Launch the overlay assistant activity when the assistant is invoked
         val intent = Intent(context, AssistantOverlayActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
             putExtra(EXTRA_VOICE_LAUNCH, true)
         }
-        context.startActivity(intent)
-
-        // Hide this session's UI immediately since we're using our own Activity
-        hide()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startAssistantActivity(intent)
+        } else {
+            context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            hide()
+        }
     }
 
     override fun onHandleAssist(state: AssistState) {

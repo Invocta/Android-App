@@ -12,6 +12,9 @@ data class UserPreferences(
     // Wake word detection ("Hey Invocta")
     val wakeWordEnabled: Boolean = false,
     // Onboarding status
-    val onboardingCompleted: Boolean = false
+    val onboardingCompleted: Boolean = false,
+    // Null indicates an existing install that has not selected a storage mode yet.
+    val chatStorageMode: ChatStorageMode? = null,
+    val aiProvider: AiProvider = AiProvider.LOCAL
 )
 

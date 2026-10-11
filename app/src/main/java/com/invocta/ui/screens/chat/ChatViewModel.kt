@@ -5,8 +5,11 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.invocta.data.remote.api.AuthRequiredException
+import com.invocta.data.local.ai.LocalGemmaModelManager
 import com.invocta.domain.model.AssistantState
+import com.invocta.domain.model.AiProvider
 import com.invocta.domain.model.ChatSession
+import com.invocta.domain.model.ChatStorageMode
 import com.invocta.domain.model.Message
 import com.invocta.domain.repository.ChatSessionRepository
 import com.invocta.domain.repository.PreferencesRepository
@@ -22,12 +25,36 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 class ChatViewModel(
     private val chatSessionRepository: ChatSessionRepository,
-    private val preferencesRepository: PreferencesRepository
+    private val preferencesRepository: PreferencesRepository,
+    private val gemmaModelManager: LocalGemmaModelManager
 ) : ViewModel() {
+
+    val gemmaModelStatus = gemmaModelManager.status
+    val aiProvider: StateFlow<AiProvider> = preferencesRepository.getPreferences()
+        .map { it.aiProvider }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AiProvider.LOCAL)
+
+    init {
+        viewModelScope.launch {
+            preferencesRepository.getPreferences()
+                .map { it.chatStorageMode ?: ChatStorageMode.LOCAL }
+                .distinctUntilChanged()
+                .collect {
+                    textToSpeechService?.shutdown()
+                    textToSpeechService = null
+                    speechToTextService?.destroy()
+                    speechToTextService = null
+                }
+        }
+    }
 
     companion object {
         private const val TAG = "ChatViewModel"
@@ -112,8 +139,10 @@ class ChatViewModel(
      */
     fun initializeTextToSpeech(context: Context) {
         if (textToSpeechService == null) {
-            textToSpeechService = TextToSpeechService(context)
-            textToSpeechService?.initialize()
+            viewModelScope.launch {
+                val localOnly = preferencesRepository.getPreferences().first().chatStorageMode != ChatStorageMode.CLOUD
+                textToSpeechService = TextToSpeechService(context, localOnly).also { it.initialize() }
+            }
         }
     }
     
@@ -423,10 +452,13 @@ class ChatViewModel(
         if (speechToTextService != null) return
 
         android.util.Log.d("ChatViewModel", "Initializing unified SpeechToTextService")
-        speechToTextService = SpeechToTextService(context).apply {
-            initialize()
+        viewModelScope.launch {
+            val localOnly = preferencesRepository.getPreferences().first().chatStorageMode != ChatStorageMode.CLOUD
+            speechToTextService = SpeechToTextService(context, localOnly).apply {
+                initialize()
+            }
+            setupSpeechObservers()
         }
-        setupSpeechObservers()
     }
     
     /**

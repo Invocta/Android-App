@@ -5,15 +5,13 @@
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <exclude domain="sharedpref" path="google_ai_studio_key.xml" />
+        <exclude domain="sharedpref" path="openai_api_key.xml" />
+        <exclude domain="external" path="Download/models/" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="sharedpref" path="google_ai_studio_key.xml" />
+        <exclude domain="sharedpref" path="openai_api_key.xml" />
+        <exclude domain="external" path="Download/models/" />
     </device-transfer>
-    -->
 </data-extraction-rules>

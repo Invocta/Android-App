@@ -67,7 +67,7 @@ NOTE: If accessibility-based clicks fail 2+ times, the system automatically swit
  */
 class ReadScreenVisionTool : Tool {
     override val name = "read_screen_vision"
-    override val description = """Capture a screenshot and analyze it using AI vision. Use this IMMEDIATELY when read_screen returns:
+    override val description = """Capture a screenshot with coordinates when accessibility screen content is empty or clicks fail.
 - Mostly empty or unhelpful data
 - Web browser content that's hard to understand
 - "No screen content available" message

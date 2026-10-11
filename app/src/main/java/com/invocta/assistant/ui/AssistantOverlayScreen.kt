@@ -44,8 +44,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -68,8 +69,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.invocta.domain.model.AssistantState
+import com.invocta.domain.model.AiProvider
 import java.util.Calendar
 import com.invocta.domain.model.Message
+import com.invocta.data.local.ai.LocalGemmaModelStatus
 import com.invocta.ui.components.ChatInputBar
 import com.invocta.ui.components.ChatInputState
 import com.invocta.ui.screens.chat.ChatViewModel
@@ -80,7 +83,8 @@ fun AssistantOverlayScreen(
     viewModel: ChatViewModel,
     userName: String = "",
     onDismiss: () -> Unit,
-    onExpandToFullApp: () -> Unit
+    onExpandToFullApp: () -> Unit,
+    onOpenAiSettings: () -> Unit
 ) {
     val context = LocalContext.current
     val messages by viewModel.messages.collectAsState()
@@ -90,6 +94,8 @@ fun AssistantOverlayScreen(
     val soundLevel by viewModel.soundLevel.collectAsState()
     val currentSessionId by viewModel.currentSessionId.collectAsState()
     val streamingContent by viewModel.streamingContent.collectAsState()
+    val gemmaStatus by viewModel.gemmaModelStatus.collectAsState()
+    val aiProvider by viewModel.aiProvider.collectAsState()
 
     var hasMicPermission by remember {
         mutableStateOf(
@@ -202,6 +208,13 @@ fun AssistantOverlayScreen(
             },
             onDismiss = onDismiss,
             onExpandToFullApp = onExpandToFullApp,
+            onOpenAiSettings = onOpenAiSettings,
+            modelReady = aiProvider != AiProvider.LOCAL || (gemmaStatus as? LocalGemmaModelStatus.Ready)?.selected == true,
+            modelLabel = when (aiProvider) {
+                AiProvider.LOCAL -> "On-device Gemma"
+                AiProvider.GOOGLE_AI_STUDIO -> "Gemma 4 · Google AI Studio"
+                AiProvider.OPENAI -> "${com.invocta.data.remote.OpenAiAIClient.MODEL} · OpenAI"
+            },
             modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
@@ -225,6 +238,9 @@ private fun AssistantPanel(
     onNewChat: () -> Unit,
     onDismiss: () -> Unit,
     onExpandToFullApp: () -> Unit,
+    onOpenAiSettings: () -> Unit,
+    modelReady: Boolean,
+    modelLabel: String,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -351,10 +367,18 @@ private fun AssistantPanel(
             // Header with drag handle and controls
             AssistantHeader(
                 hasMessages = messages.isNotEmpty(),
+                modelLabel = modelLabel,
                 onNewChat = onNewChat,
                 onDismiss = onDismiss,
                 onExpandToFullApp = onExpandToFullApp
             )
+
+            if (!modelReady) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text("Download Gemma to use the assistant on this device.", style = MaterialTheme.typography.bodySmall)
+                    Button(onClick = onOpenAiSettings, modifier = Modifier.padding(top = 6.dp)) { Text("Open AI settings") }
+                }
+            }
 
             // Messages area (limited height for overlay)
             if (messages.isNotEmpty()) {
@@ -436,6 +460,7 @@ private fun AssistantPanel(
 @Composable
 private fun AssistantHeader(
     hasMessages: Boolean,
+    modelLabel: String,
     onNewChat: () -> Unit,
     onDismiss: () -> Unit,
     onExpandToFullApp: () -> Unit
@@ -472,11 +497,10 @@ private fun AssistantHeader(
             }
 
             // Center - Title
-            Text(
-                text = "Invocta",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Invocta", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                Text(modelLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
 
             // Right side - Action buttons
             Row {

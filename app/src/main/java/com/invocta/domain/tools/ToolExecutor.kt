@@ -212,7 +212,7 @@ class ToolExecutor(
                         )
                         
                         streamResult.getOrElse { error ->
-                            Log.e(TAG, "❌ Streaming error, falling back to non-streaming: ${error.message}")
+                            Log.w(TAG, "Streaming request failed; trying non-streaming: ${error.message}")
                             // Fall back to non-streaming on error
                             val fallbackResponse = aiClient.chatWithTools(
                                 systemPrompt = systemPrompt,
@@ -220,6 +220,7 @@ class ToolExecutor(
                                 tools = tools
                             )
                             fallbackResponse.getOrElse {
+                                Log.e(TAG, "AI request failed after streaming fallback: ${it.message}")
                                 if (usedScreenTools) notifyAllToolsCompleted()
                                 return@withContext Result.failure(it)
                             }
@@ -248,12 +249,13 @@ class ToolExecutor(
                                 function = FunctionCallInfo(
                                     name = tc.name,
                                     arguments = tc.arguments
-                                )
+                                ),
+                                thoughtSignature = tc.thoughtSignature
                             )
                         }
 
                         // Add assistant message with tool calls
-                        messages.add(ChatMessage.assistantWithToolCalls(aiResponse.content, toolCallInfos))
+                        messages.add(ChatMessage.assistantWithToolCalls(aiResponse.content, toolCallInfos, aiResponse.providerOutputItems))
 
                         // Execute each tool call
                         for (toolCall in aiResponse.toolCalls) {
@@ -307,7 +309,8 @@ class ToolExecutor(
                             }
 
                             // Short delay after opening apps - 1 second is enough for most apps
-                            if (currentToolName == "open_app" && result is ToolResult.Success) {
+                            if ((currentToolName == "open_app" && result is ToolResult.Success) ||
+                                (currentToolName == "input_text" && result is ToolResult.Error)) {
                                 Log.d(TAG, "Waiting for app to launch...")
                                 kotlinx.coroutines.delay(1000)
                             }
@@ -347,6 +350,11 @@ class ToolExecutor(
 
                             // Build the result message for AI - include vision mode status if relevant
                             var resultMessage = result.toOutputString()
+                            if ((currentToolName == "open_app" && result is ToolResult.Success) ||
+                                (currentToolName == "input_text" && result is ToolResult.Error)) {
+                                val screen = toolRegistry.executeTool("read_screen", emptyMap())
+                                if (screen is ToolResult.Success) resultMessage += "\nCurrent screen:\n${screen.toOutputString()}"
+                            }
                             if (useVisionModePermanently && result is ToolResult.Error && toolCall.name == "click_element") {
                                 resultMessage += "\n\nNOTE: This app has poor accessibility support. Vision mode is now ACTIVE - use read_screen_vision and click with x,y coordinates only."
                             }
@@ -362,7 +370,10 @@ class ToolExecutor(
                                     mimeType = result.mimeType
                                 ))
                             } else {
-                                messages.add(ChatMessage.toolResult(toolCall.id, resultMessage))
+                                messages.add(ChatMessage.toolResult(toolCall.id,
+                                    if (resultMessage.length > 1800) resultMessage.take(1800) + "\n[Screen output shortened; use find_on_screen for a specific target.]"
+                                    else resultMessage
+                                ))
                             }
                         }
                     } else {

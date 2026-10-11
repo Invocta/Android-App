@@ -6,8 +6,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.invocta.domain.model.AuthState
 import com.invocta.domain.model.AuthUser
+import com.invocta.domain.model.ChatStorageMode
 import com.invocta.domain.model.OnboardingStep
 import com.invocta.domain.repository.AuthRepository
+import com.invocta.domain.repository.ChatSessionRepository
 import com.invocta.domain.repository.PreferencesRepository
 import io.github.jan.supabase.compose.auth.composable.NativeSignInResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,8 +26,6 @@ data class OnboardingUiState(
     val error: String? = null,
     val email: String = "",
     val password: String = "",
-    val confirmPassword: String = "",
-    val isSignUp: Boolean = true,
     val userName: String = "",
     val emailSent: Boolean = false,
     val isOnboardingComplete: Boolean = false,
@@ -35,7 +35,8 @@ data class OnboardingUiState(
 
 class OnboardingViewModel(
     private val authRepository: AuthRepository,
-    private val preferencesRepository: PreferencesRepository
+    private val preferencesRepository: PreferencesRepository,
+    private val chatSessionRepository: ChatSessionRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OnboardingUiState())
@@ -55,6 +56,14 @@ class OnboardingViewModel(
             try {
                 val preferences = preferencesRepository.getPreferences().first()
                 val isAuthenticated = authRepository.isAuthenticated()
+                val storageMode = preferences.chatStorageMode ?: if (isAuthenticated) {
+                    ChatStorageMode.CLOUD
+                } else {
+                    ChatStorageMode.LOCAL
+                }
+                if (preferences.chatStorageMode == null) {
+                    preferencesRepository.updateChatStorageMode(storageMode)
+                }
 
                 // Get display name from Supabase (source of truth)
                 val supabaseDisplayName = if (isAuthenticated) {
@@ -71,8 +80,22 @@ class OnboardingViewModel(
                 val effectiveName = supabaseDisplayName ?: preferences.userName
 
                 when {
+                    storageMode == ChatStorageMode.LOCAL && preferences.onboardingCompleted -> {
+                        _uiState.value = _uiState.value.copy(
+                            isOnboardingComplete = true,
+                            userName = preferences.userName,
+                            isLoading = false
+                        )
+                    }
+                    storageMode == ChatStorageMode.LOCAL && preferences.userName.isNotBlank() -> {
+                        _uiState.value = _uiState.value.copy(
+                            currentStep = OnboardingStep.PERMISSIONS,
+                            userName = preferences.userName,
+                            isLoading = false
+                        )
+                    }
                     // Fully onboarded
-                    isAuthenticated && preferences.onboardingCompleted -> {
+                    storageMode == ChatStorageMode.CLOUD && isAuthenticated && preferences.onboardingCompleted -> {
                         _uiState.value = _uiState.value.copy(
                             isOnboardingComplete = true,
                             userName = effectiveName,
@@ -80,7 +103,7 @@ class OnboardingViewModel(
                         )
                     }
                     // Authenticated with name - skip to permissions
-                    isAuthenticated && hasName && !preferences.onboardingCompleted -> {
+                    storageMode == ChatStorageMode.CLOUD && isAuthenticated && hasName && !preferences.onboardingCompleted -> {
                         _uiState.value = _uiState.value.copy(
                             currentStep = OnboardingStep.PERMISSIONS,
                             userName = effectiveName,
@@ -88,7 +111,7 @@ class OnboardingViewModel(
                         )
                     }
                     // Authenticated but no name - show name input
-                    isAuthenticated && !hasName && !preferences.onboardingCompleted -> {
+                    storageMode == ChatStorageMode.CLOUD && isAuthenticated && !hasName && !preferences.onboardingCompleted -> {
                         _uiState.value = _uiState.value.copy(
                             currentStep = OnboardingStep.NAME_INPUT,
                             userName = "",
@@ -121,21 +144,27 @@ class OnboardingViewModel(
         _uiState.value = _uiState.value.copy(password = password, error = null)
     }
 
-    fun updateConfirmPassword(confirmPassword: String) {
-        _uiState.value = _uiState.value.copy(confirmPassword = confirmPassword, error = null)
-    }
-
     fun updateUserName(name: String) {
         _uiState.value = _uiState.value.copy(userName = name, error = null)
     }
 
-    fun toggleAuthMode() {
-        _uiState.value = _uiState.value.copy(
-            isSignUp = !_uiState.value.isSignUp,
-            error = null,
-            password = "",
-            confirmPassword = ""
-        )
+    fun continueLocally() {
+        viewModelScope.launch {
+            val preferences = preferencesRepository.getPreferences().first()
+            preferencesRepository.updateChatStorageMode(ChatStorageMode.LOCAL)
+            val nextStep = when {
+                preferences.onboardingCompleted -> OnboardingStep.COMPLETED
+                preferences.userName.isNotBlank() -> OnboardingStep.PERMISSIONS
+                else -> OnboardingStep.NAME_INPUT
+            }
+            _uiState.value = _uiState.value.copy(
+                currentStep = nextStep,
+                userName = preferences.userName,
+                isOnboardingComplete = nextStep == OnboardingStep.COMPLETED,
+                isLoading = false,
+                error = null
+            )
+        }
     }
 
     fun clearError() {
@@ -161,6 +190,8 @@ class OnboardingViewModel(
 
             authRepository.verifyEmailOtp(state.email, state.otpCode)
                 .onSuccess { user ->
+                    syncLocalChatsToCloud()
+                    preferencesRepository.updateChatStorageMode(ChatStorageMode.CLOUD)
                     Log.d(TAG, "Email verified successfully")
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
@@ -201,58 +232,16 @@ class OnboardingViewModel(
         }
     }
 
-    fun signUpWithEmail() {
+    fun continueWithEmail() {
         val state = _uiState.value
 
         // Validation
-        if (state.email.isBlank()) {
-            _uiState.value = state.copy(error = "Email is required")
-            return
-        }
         if (!android.util.Patterns.EMAIL_ADDRESS.matcher(state.email).matches()) {
-            _uiState.value = state.copy(error = "Invalid email format")
+            _uiState.value = state.copy(error = "Enter a valid email address")
             return
         }
         if (state.password.length < 6) {
             _uiState.value = state.copy(error = "Password must be at least 6 characters")
-            return
-        }
-        if (state.password != state.confirmPassword) {
-            _uiState.value = state.copy(error = "Passwords don't match")
-            return
-        }
-
-        viewModelScope.launch {
-            _uiState.value = state.copy(isLoading = true, error = null)
-
-            authRepository.signUpWithEmail(state.email, state.password)
-                .onSuccess {
-                    // Go to email verification step - OTP will be sent by Supabase
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        emailSent = true,
-                        currentStep = OnboardingStep.EMAIL_VERIFICATION
-                    )
-                }
-                .onFailure { e ->
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        error = e.message ?: "Sign up failed"
-                    )
-                }
-        }
-    }
-
-    fun signInWithEmail() {
-        val state = _uiState.value
-
-        // Validation
-        if (state.email.isBlank()) {
-            _uiState.value = state.copy(error = "Email is required")
-            return
-        }
-        if (state.password.isBlank()) {
-            _uiState.value = state.copy(error = "Password is required")
             return
         }
 
@@ -260,42 +249,49 @@ class OnboardingViewModel(
             _uiState.value = state.copy(isLoading = true, error = null)
 
             authRepository.signInWithEmail(state.email, state.password)
-                .onSuccess { user ->
-                    // Get display name from Supabase (source of truth)
-                    val supabaseDisplayName = authRepository.getDisplayName()
-                    val preferences = preferencesRepository.getPreferences().first()
-
-                    // Sync Supabase name to local preferences
-                    if (supabaseDisplayName != null && preferences.userName != supabaseDisplayName) {
-                        preferencesRepository.updateUserName(supabaseDisplayName)
-                    }
-
-                    // Check if user has a name
-                    val hasName = supabaseDisplayName?.isNotBlank() == true || preferences.userName.isNotBlank()
-                    val effectiveName = supabaseDisplayName ?: preferences.userName
-
-                    // Skip name screen if user already has a name, go directly to permissions
-                    // If onboarding is completed, skip everything
-                    val nextStep = when {
-                        preferences.onboardingCompleted -> OnboardingStep.COMPLETED
-                        hasName -> OnboardingStep.PERMISSIONS
-                        else -> OnboardingStep.NAME_INPUT
-                    }
-
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        currentStep = nextStep,
-                        userName = effectiveName,
-                        isOnboardingComplete = nextStep == OnboardingStep.COMPLETED
-                    )
+                .onSuccess {
+                    completeEmailSignIn()
                 }
-                .onFailure { e ->
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        error = e.message ?: "Sign in failed"
-                    )
+                .onFailure {
+                    authRepository.signUpWithEmail(state.email, state.password)
+                        .onSuccess {
+                            _uiState.value = _uiState.value.copy(
+                                isLoading = false,
+                                emailSent = true,
+                                currentStep = OnboardingStep.EMAIL_VERIFICATION
+                            )
+                        }
+                        .onFailure {
+                            _uiState.value = _uiState.value.copy(
+                                isLoading = false,
+                                error = "Couldn't sign in or create an account. Check your password, or use Forgot Password if you already have an account."
+                            )
+                        }
                 }
         }
+    }
+
+    private suspend fun completeEmailSignIn() {
+        syncLocalChatsToCloud()
+        preferencesRepository.updateChatStorageMode(ChatStorageMode.CLOUD)
+        val supabaseDisplayName = authRepository.getDisplayName()
+        val preferences = preferencesRepository.getPreferences().first()
+        if (supabaseDisplayName != null && preferences.userName != supabaseDisplayName) {
+            preferencesRepository.updateUserName(supabaseDisplayName)
+        }
+
+        val effectiveName = supabaseDisplayName ?: preferences.userName
+        val nextStep = when {
+            preferences.onboardingCompleted -> OnboardingStep.COMPLETED
+            effectiveName.isNotBlank() -> OnboardingStep.PERMISSIONS
+            else -> OnboardingStep.NAME_INPUT
+        }
+        _uiState.value = _uiState.value.copy(
+            isLoading = false,
+            currentStep = nextStep,
+            userName = effectiveName,
+            isOnboardingComplete = nextStep == OnboardingStep.COMPLETED
+        )
     }
 
     // Keep this for backward compatibility but it's no longer used
@@ -350,6 +346,8 @@ class OnboardingViewModel(
     }
 
     private suspend fun handleSuccessfulAuth(user: AuthUser) {
+        syncLocalChatsToCloud()
+        preferencesRepository.updateChatStorageMode(ChatStorageMode.CLOUD)
         val preferences = preferencesRepository.getPreferences().first()
 
         // Get display name from Supabase metadata (our stored name, not OAuth provider name)
@@ -387,6 +385,15 @@ class OnboardingViewModel(
             userName = effectiveName,
             isOnboardingComplete = nextStep == OnboardingStep.COMPLETED
         )
+    }
+
+    private suspend fun syncLocalChatsToCloud() {
+        try {
+            chatSessionRepository.syncLocalChatsToCloud()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to sync local chats to cloud", e)
+            _uiState.value = _uiState.value.copy(error = "Some local chats could not be synced. They remain on this device.")
+        }
     }
 
     fun sendPasswordReset() {
@@ -438,12 +445,11 @@ class OnboardingViewModel(
 
                 // Try to update Supabase user metadata if we have a valid session
                 // This might fail for new email signups that haven't verified yet
-                val supabaseResult = authRepository.updateDisplayName(name)
-
-                if (supabaseResult.isFailure) {
-                    // Log but don't fail - name is saved locally
-                    // Will sync to Supabase when user verifies email and signs in
-                    Log.d(TAG, "Could not update Supabase display name (user may not be verified yet): ${supabaseResult.exceptionOrNull()?.message}")
+                if (preferencesRepository.getPreferences().first().chatStorageMode == ChatStorageMode.CLOUD) {
+                    val supabaseResult = authRepository.updateDisplayName(name)
+                    if (supabaseResult.isFailure) {
+                        Log.d(TAG, "Could not update Supabase display name: ${supabaseResult.exceptionOrNull()?.message}")
+                    }
                 }
 
                 _uiState.value = _uiState.value.copy(
@@ -490,8 +496,14 @@ class OnboardingViewModel(
 
     fun signOut() {
         viewModelScope.launch {
+            preferencesRepository.updateChatStorageMode(ChatStorageMode.LOCAL)
             authRepository.signOut()
-            _uiState.value = OnboardingUiState()
+            val preferences = preferencesRepository.getPreferences().first()
+            _uiState.value = OnboardingUiState(
+                currentStep = if (preferences.onboardingCompleted) OnboardingStep.COMPLETED else OnboardingStep.AUTHENTICATION,
+                userName = preferences.userName,
+                isOnboardingComplete = preferences.onboardingCompleted
+            )
         }
     }
 }

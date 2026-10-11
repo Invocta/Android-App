@@ -6,8 +6,7 @@
    See https://developer.android.com/about/versions/12/backup-restore
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <exclude domain="sharedpref" path="google_ai_studio_key.xml" />
+    <exclude domain="sharedpref" path="openai_api_key.xml" />
+    <exclude domain="external" path="Download/models/" />
 </full-backup-content>

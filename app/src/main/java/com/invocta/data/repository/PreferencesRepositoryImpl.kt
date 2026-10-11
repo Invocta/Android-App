@@ -9,6 +9,8 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.invocta.domain.model.ThemeMode
+import com.invocta.domain.model.ChatStorageMode
+import com.invocta.domain.model.AiProvider
 import com.invocta.domain.model.UserPreferences
 import com.invocta.domain.repository.PreferencesRepository
 import kotlinx.coroutines.flow.Flow
@@ -30,6 +32,8 @@ class PreferencesRepositoryImpl(
 
         // Onboarding
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+        val CHAT_STORAGE_MODE = stringPreferencesKey("chat_storage_mode")
+        val AI_PROVIDER = stringPreferencesKey("ai_provider")
     }
 
     override fun getPreferences(): Flow<UserPreferences> {
@@ -43,7 +47,13 @@ class PreferencesRepositoryImpl(
                 userName = preferences[PreferencesKeys.USER_NAME] ?: "",
                 assistantVoiceSpeed = preferences[PreferencesKeys.ASSISTANT_VOICE_SPEED] ?: 1.0f,
                 wakeWordEnabled = preferences[PreferencesKeys.WAKE_WORD_ENABLED] ?: false,
-                onboardingCompleted = preferences[PreferencesKeys.ONBOARDING_COMPLETED] ?: false
+                onboardingCompleted = preferences[PreferencesKeys.ONBOARDING_COMPLETED] ?: false,
+                aiProvider = preferences[PreferencesKeys.AI_PROVIDER]?.let {
+                    runCatching { AiProvider.valueOf(it) }.getOrNull()
+                } ?: AiProvider.LOCAL,
+                chatStorageMode = preferences[PreferencesKeys.CHAT_STORAGE_MODE]?.let {
+                    runCatching { ChatStorageMode.valueOf(it) }.getOrNull()
+                }
             )
         }
     }
@@ -82,6 +92,16 @@ class PreferencesRepositoryImpl(
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.ONBOARDING_COMPLETED] = completed
         }
+    }
+
+    override suspend fun updateChatStorageMode(mode: ChatStorageMode) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.CHAT_STORAGE_MODE] = mode.name
+        }
+    }
+
+    override suspend fun updateAiProvider(provider: AiProvider) {
+        context.dataStore.edit { it[PreferencesKeys.AI_PROVIDER] = provider.name }
     }
 
     override suspend fun updateWakeWordEnabled(enabled: Boolean) {

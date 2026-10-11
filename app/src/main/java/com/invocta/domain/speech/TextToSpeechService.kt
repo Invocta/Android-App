@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
  * - MAI-Voice-1 voices for enhanced US English
  * - Multi-language support (English, Hindi, Marathi)
  */
-class TextToSpeechService(private val context: Context) {
+class TextToSpeechService(private val context: Context, private val localOnly: Boolean = false) {
 
     companion object {
         private const val TAG = "TextToSpeech"
@@ -48,6 +48,10 @@ class TextToSpeechService(private val context: Context) {
      */
     fun initialize() {
         scope.launch {
+            if (localOnly) {
+                initializeNativeTts()
+                return@launch
+            }
             // Try Server TTS first (best quality)
             Log.d(TAG, "Trying Server TTS (Azure Neural)...")
             serverTts = ServerTtsService(context)

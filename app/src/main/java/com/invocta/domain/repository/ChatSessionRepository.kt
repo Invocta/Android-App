@@ -38,6 +38,7 @@ interface ChatSessionRepository {
      * Delete all chat sessions
      */
     suspend fun deleteAllSessions()
+    suspend fun syncLocalChatsToCloud()
 
     /**
      * Get messages for a specific session
@@ -72,11 +73,6 @@ interface ChatSessionRepository {
      * Get recent messages for context (for AI)
      */
     suspend fun getRecentMessages(sessionId: String, limit: Int = 10): List<Message>
-
-    /**
-     * Check if AI is properly configured (server-side)
-     */
-    fun isAIConfigured(): Boolean
 
     /**
      * Auto-generate title from first user message

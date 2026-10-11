@@ -106,6 +106,11 @@ fun AppNavHost(
                     navController.navigate(Screen.Onboarding.route) {
                         popUpTo(0) { inclusive = true }
                     }
+                },
+                onSignInRequired = {
+                    navController.navigate(Screen.Onboarding.route) {
+                        popUpTo(Screen.Home.route) { inclusive = false }
+                    }
                 }
             )
         }
