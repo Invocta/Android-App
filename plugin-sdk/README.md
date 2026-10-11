@@ -1,10 +1,34 @@
 # Invocta Android plugin SDK
 
-This Android library lets an app expose a small set of local actions to Invocta. The two apps communicate through a bound Android service and `Messenger`; no server, API key, accessibility service, or shared database is involved. The SDK is a separate Gradle module and can be extracted into its own repository or published as an AAR later.
+This Android library lets an app expose a small set of local actions to Invocta. The two apps communicate through a bound Android service and `Messenger`; no server, API key, accessibility service, or shared database is involved.
+
+## Add the SDK
+
+Add JitPack to `settings.gradle.kts`:
+
+```kotlin
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+    }
+}
+```
+
+Then add the SDK to your app module:
+
+```kotlin
+dependencies {
+    implementation("com.github.Invocta.Android-App:plugin-sdk:v0.1.0")
+}
+```
+
+The SDK and application are licensed under GPL-3.0-or-later. Review that license before distributing an app that incorporates the SDK.
 
 ## Provider app
 
-Add `implementation(project(":plugin-sdk"))` (or the published AAR when available). Subclass `InvoctaPluginService`:
+Subclass `InvoctaPluginService`:
 
 ```kotlin
 class MyPluginService : InvoctaPluginService() {
@@ -54,4 +78,4 @@ Invocta declares package visibility for `com.invocta.action.PLUGIN`. The user mu
 ./gradlew :app:assembleDebug :sample-food-app:assembleDebug
 ```
 
-Install the two APKs from `app/build/outputs/apk/debug/` and `sample-food-app/build/outputs/apk/debug/` on the same device. The SDK is a local project dependency in this prototype; no artifact has been published.
+Install the two APKs from `app/build/outputs/apk/debug/` and `sample-food-app/build/outputs/apk/debug/` on the same device. The sample app uses the SDK as a local project dependency so it can be developed alongside Invocta.
