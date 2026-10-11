@@ -3,6 +3,7 @@
 *.aar
 *.ap_
 *.aab
+/dev-kit/
 
 # Files for the ART/Dalvik VM
 *.dex
