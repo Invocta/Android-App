@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="com.invocta.assistant.AssistantSessionService"
+    android:recognitionService="com.invocta.assistant.AssistantRecognitionService"
+    android:settingsActivity="com.invocta.MainActivity"
+    android:supportsAssist="true"
+    android:supportsLaunchVoiceAssistFromKeyguard="true"
+    android:supportsLocalInteraction="true" />
+
