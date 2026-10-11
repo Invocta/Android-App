@@ -25,3 +25,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Invocta"
 include(":app")
+include(":plugin-sdk", ":sample-food-app")
